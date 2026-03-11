@@ -83,42 +83,45 @@ namespace Suspended.Backend
         // Whitelisted processes that should never be suspended
         // ================================
 
-        private static readonly string[] WhitelistedProcesses =
-        {
-            "ApplicationFrameHost",
-            "dwm",
-            "explorer",
-            "perfmon",
-            "SystemSettings",
-            "Taskmgr",
-            "TextInputHost",
-            "WinStore.App",
-            "steamwebhelper",
-            "EpicGamesLauncher",
-            "Tooth",
-            "Suspended",
-            "WindowsTerminal",
-            "devenv",
-            "msedge",
-            "Code",
-            "Discord",
-            "NVIDIA Overlay",
-            "NVIDIA App",
-            "Notepad",
-            "XboxPcApp",
-            "Gamebar_Widget",
-            "MSI Center M",
-            "IntelGraphicsSoftware"
-        };
+        private static readonly string[] WhitelistedProcesses = GameSuspendController.WhitelistedProcesses;
 
         // ================================
         // Constructor
         // ================================
         public WindowProcessManager(TimeSpan refreshRate)
         {
+            // EN: Dynamically find the UWP package folder (it changes based on cert/install)
+            // FR: Trouve dynamiquement le dossier du package UWP (il change selon le certificat/install)
+            try
+            {
+                string packagesRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages");
+                if (Directory.Exists(packagesRoot))
+                {
+                    string targetPrefix = "BassemNomany.SuspendedNTime_";
+                    var dirs = Directory.GetDirectories(packagesRoot, targetPrefix + "*")
+                                .Select(d => new DirectoryInfo(d))
+                                .OrderByDescending(d => d.LastWriteTime)
+                                .ToList();
+                    
+                    if (dirs.Count > 0)
+                    {
+                        // Take the most recently modified package folder
+                        localState = Path.Combine(dirs[0].FullName, "LocalState", "Icons");
+                        Console.WriteLine($"[WindowProcessManager] Found Package Folder: {dirs[0].FullName}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WindowProcessManager] Error finding package folder: {ex.Message}");
+            }
 
-            localState = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) +
-                @"\Packages\BassemNomany.SuspendedNTime_ah2yj8jdj20z4\LocalState\Icons";
+            // Fallback to hardcoded if not found (though dynamic should work)
+            if (string.IsNullOrEmpty(localState))
+            {
+                localState = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
+                    @"Packages\BassemNomany.SuspendedNTime_ah2yj8jdj20z4\LocalState\Icons");
+            }
 
             this.refreshRate = refreshRate;
             refreshTimer = new Timer(
@@ -160,6 +163,7 @@ namespace Suspended.Backend
         public bool IsRefreshing => refreshEnabled;
 
         public bool IsForegroundAppSuspended = false;
+        public string LocalStatePath => localState;
 
         // ================================
         // Refresh Logic
@@ -247,13 +251,28 @@ namespace Suspended.Backend
 
 
                     string fullExePath = iconSb.ToString();
-                    string exeName = System.IO.Path.GetFileName(fullExePath);
+                    // EN: Use name without extension to avoid cache files like "game.exe.png"
+                    // FR: Sans extension pour éviter les fichiers cache du type "game.exe.png"
+                    string exeName = System.IO.Path.GetFileNameWithoutExtension(fullExePath);
                     string cacheFileName = exeName + ".png";
                     string cacheRelativePath = "Icons/" + cacheFileName;
 
-                    string msAppDataUri = "ms-appdata:///local/" + cacheRelativePath;
+                    string msAppDataUri = "ms-appdata:///local/" + cacheRelativePath.Replace("\\", "/");
 
-                    TriggerIconBuild(fullExePath, exeName);
+                    // EN: Build icon on a dedicated STA thread (Shell COM API requires STA)
+                    // FR: Construit l'icône sur un thread STA dédié (les API Shell COM requièrent STA)
+                    var capturedFullExePath = fullExePath;
+                    var capturedExeName = exeName;
+                    var capturedLocalState = localState;
+                    var staThread = new System.Threading.Thread(() =>
+                        TriggerIconBuild(capturedFullExePath, capturedExeName, capturedLocalState));
+                    staThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                    staThread.IsBackground = true;
+                    staThread.Start();
+
+                    // EN: Wait for icon to be written BEFORE adding window to list so UWP can load it immediately
+                    // FR: On attend que l'icône soit écrite AVANT d'ajouter la fenêtre pour que l'UWP la trouve dès le premier chargement
+                    staThread.Join(5000); // 5s timeout to ensure disk write is done on slower disks
 
                     var info = new WindowInfo
                     {
@@ -375,28 +394,76 @@ namespace Suspended.Backend
                     ProcessId = w.ProcessId,
                     Title = w.Title,
                     IconPath = w.ProcessIconPath,
+                    ProcessName = w.ProcessName,
                     IsSuspended = w.IsSuspended
                 }).ToList();
             }
         }
 
-        private void TriggerIconBuild(string fullExePath, string exeName)
+        private static void TriggerIconBuild(string fullExePath, string exeName, string localStatePath)
         {
-            Directory.CreateDirectory(localState);
-            string cachePath = System.IO.Path.Combine(localState, exeName + ".png");
-
-            if (!File.Exists(cachePath))
+            try
             {
-                using Bitmap bmp = GameIconExtractor.IconHelper.GetExeIcon(fullExePath, 64, 6);
-                bmp.Save(cachePath, ImageFormat.Png);
+                Directory.CreateDirectory(localStatePath);
+                string cachePath = System.IO.Path.Combine(localStatePath, exeName + ".png");
+                string grayCachePath = System.IO.Path.Combine(localStatePath, exeName + "-grayscale.png");
 
-                string grayCachePath = Path.Combine(localState, exeName + "-grayscale.png");
-                if (!File.Exists(grayCachePath))
+                if (!File.Exists(cachePath))
                 {
-                    using Bitmap grayBmp = GameIconExtractor.IconHelper.MakeGrayscale(bmp);
-                    grayBmp.Save(grayCachePath, ImageFormat.Png);
-                }
+                    Console.WriteLine($"[TriggerIconBuild] Extracting icon for: {fullExePath}");
+                    Bitmap bmp = null;
 
+                    // EN: Primary method: Icon.ExtractAssociatedIcon - simple, reliable, no STA/COM needed
+                    // FR: Méthode principale : fiable, pas de contrainte STA/COM
+                    try
+                    {
+                        using var rawIcon = System.Drawing.Icon.ExtractAssociatedIcon(fullExePath);
+                        if (rawIcon != null)
+                            bmp = rawIcon.ToBitmap();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TriggerIconBuild] ExtractAssociatedIcon failed: {ex.Message}");
+                    }
+
+                    // EN: Fallback: Shell thumbnail API (higher quality but requires STA thread)
+                    // FR: Fallback : API Shell thumbnail (meilleure qualité, requiert STA)
+                    if (bmp == null)
+                    {
+                        bmp = GameIconExtractor.IconHelper.GetExeIcon(fullExePath, 64, 6);
+                        if (bmp != null)
+                            Console.WriteLine($"[TriggerIconBuild] Shell API icon OK for: {exeName}");
+                        else
+                            Console.WriteLine($"[TriggerIconBuild] Both methods failed for: {exeName}");
+                    }
+
+                    if (bmp == null) return;
+
+                    // EN: Save 64x64 version
+                    // FR: Sauvegarder la version 64x64
+                    var sized = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    using (var g = Graphics.FromImage(sized))
+                    {
+                        g.Clear(Color.Transparent);
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.DrawImage(bmp, 0, 0, 64, 64);
+                    }
+                    sized.Save(cachePath, System.Drawing.Imaging.ImageFormat.Png);
+                    Console.WriteLine($"[TriggerIconBuild] Saved: {cachePath}");
+
+                    if (!File.Exists(grayCachePath))
+                    {
+                        using Bitmap grayBmp = GameIconExtractor.IconHelper.MakeGrayscale(sized);
+                        grayBmp.Save(grayCachePath, System.Drawing.Imaging.ImageFormat.Png);
+                    }
+
+                    bmp.Dispose();
+                    sized.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TriggerIconBuild] FATAL for {exeName}: {ex.Message}");
             }
         }
     }
@@ -423,6 +490,9 @@ namespace Suspended.Backend
         public int ProcessId { get; set; }
         public string Title { get; set; } = "";
         public string IconPath { get; set; } = "";
+        // EN: Process name used for whitelist filtering in Handler - not sent to the widget UI
+        // FR: Nom du processus utilisé pour filtrer la whitelist dans Handler - non envoyé au widget
+        public string ProcessName { get; set; } = "";
         public bool IsSuspended { get; set; }
     }
   

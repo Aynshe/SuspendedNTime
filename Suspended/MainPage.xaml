@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Suspended"
@@ -161,9 +161,13 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- Process Icon -->
                                 <Image Width="64" Height="64" Grid.Column="0"
-                                       Source="{Binding IconPathForUI}"
                                        HorizontalAlignment="Left"
+                                       ImageFailed="GameIcon_ImageFailed"
                                        Opacity="{Binding IsSuspended, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <Image.Source>
+                                        <BitmapImage UriSource="{Binding IconPathForUI}" 
+                                                     CreateOptions="IgnoreImageCache" />
+                                    </Image.Source>
                                 </Image>
 
 
@@ -403,6 +407,22 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+
+                <!-- Restart Service Button -->
+                <Button x:Name="RestartBackendButton"
+                        HorizontalAlignment="Stretch"
+                        Click="OnRestartBackendButtonClick"
+                        FontSize="16"
+                        Height="42"
+                        Margin="0,12,0,0">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <FontIcon Glyph="&#xE72C;" FontSize="16"/>
+                        <!-- Refresh icon -->
+                        <TextBlock Text="Restart Service" FontSize="16"/>
+                    </StackPanel>
+                </Button>
+
+
             </StackPanel>
         </ScrollViewer>
     </Grid>

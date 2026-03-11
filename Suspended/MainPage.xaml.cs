@@ -1,4 +1,4 @@
-﻿using Microsoft.Gaming.XboxGameBar;
+using Microsoft.Gaming.XboxGameBar;
 using SharpDX.Direct3D9;
 using System;
 using System.Collections.Generic;
@@ -18,6 +18,9 @@ using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Security.Authentication.Web;
 using Windows.Storage;
+using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Xaml;
 using Windows.System;
 using Windows.UI;
 using Windows.UI.Core;
@@ -38,19 +41,23 @@ namespace Suspended
     {
 
 
-        private static MainPageModel _modelBase = new MainPageModel();
+        private static MainPageModel _base = new MainPageModel();
         private MainPageModelWrapper _model;
 
         public MainPage()
         {
-            InitializeComponent();
-            _model = _modelBase.GetWrapper(Dispatcher);
+            this.InitializeComponent();
+
+            _model = _base.GetWrapper(this.Dispatcher);
             this.DataContext = _model;
 
             Backend.Instance.MessageReceivedEvent += Backend_OnMessageReceived;
             Backend.Instance.ClosedOrFailedEvent += Backend_OnClosedOrFailed;
             if (Backend.Instance.IsConnected)
+            {
                 ConnectedInitialize();
+                Backend.Instance.Send("get-backend-info");
+            }
             else
                 PanelSwitch(false);
         }
@@ -106,6 +113,9 @@ namespace Suspended
                     break;
                 case "autostart":
                     _model.SetAutoStartVar(bool.Parse(args[1]));
+                    break;
+                case "backend-info":
+                    Debug.WriteLine($"Backend Path: {message.Substring("backend-info ".Length)}");
                     break;
                 case "auto-suspend":
                     Trace.WriteLine($"[MainPage.xaml.cs] Updating UI Auto Suspend Enabled to {args[1]}");
@@ -182,6 +192,27 @@ namespace Suspended
         private void LaunchBackendButton_OnClick(object sender, RoutedEventArgs e)
         {
             _ = Backend.LaunchBackend();
+        }
+
+        private async void OnRestartBackendButtonClick(object sender, RoutedEventArgs e)
+        {
+            // EN: Kill the backend and restart it. Suspended games remain frozen in memory.
+            // FR: Redémarre le service backend. Les jeux suspendus restent gelés en mémoire.
+            try
+            {
+                var processes = System.Diagnostics.Process.GetProcessesByName("Suspended.Backend");
+                foreach (var p in processes)
+                {
+                    try { p.Kill(); } catch { }
+                }
+
+                await System.Threading.Tasks.Task.Delay(1200);
+                _ = Backend.LaunchBackend();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[RestartBackend] Error: {ex.Message}");
+            }
         }
 
         private void OnResumeButtonClick(object sender, RoutedEventArgs e)
@@ -261,6 +292,14 @@ namespace Suspended
             if (sender is ToggleSwitch toggleSwitch)
             {
                 _model.SetGoBackToSleepEnabledVar(toggleSwitch.IsOn);
+            }
+        }
+
+        private void GameIcon_ImageFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            if (sender is Image img && img.Source is BitmapImage bmp)
+            {
+                Debug.WriteLine($"[GameIcon] Failed to load icon: {bmp.UriSource?.ToString()} - Error: {e.ErrorMessage}");
             }
         }
     }

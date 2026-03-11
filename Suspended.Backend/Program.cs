@@ -135,6 +135,7 @@ namespace Suspended.Backend
                         Items =
                         {
                             //new ToolStripMenuItem("Show/Hide", null, OnOpen),
+                            new ToolStripMenuItem("Restart Service", null, OnRestart),
                             new ToolStripMenuItem("Exit", null, OnExit)
                         }
                     }
@@ -170,6 +171,32 @@ namespace Suspended.Backend
                 // signal cancellation to background tasks
                 _cts.Cancel();
                 Application.Exit();
+            }
+
+            void OnRestart(object sender, EventArgs e)
+            {
+                // EN: Restart the backend service without touching suspended games.
+                // FR: Redémarre le service backend sans toucher aux jeux suspendus.
+                trayIcon.Visible = false;
+                _cts.Cancel();
+
+                try
+                {
+                    string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Restart] Failed to restart: {ex.Message}");
+                }
+                finally
+                {
+                    Application.Exit();
+                }
             }
         }
 

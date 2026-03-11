@@ -109,7 +109,7 @@ namespace Suspended.Backend
         private static extern bool IsWindowVisible(IntPtr hWnd);
 
         // Whitelisted processes that should never be suspended
-        private static readonly string[] WhitelistedProcesses =
+        public static readonly string[] WhitelistedProcesses =
         {
             "ApplicationFrameHost",
             "dwm",
@@ -124,13 +124,25 @@ namespace Suspended.Backend
             "Tooth",
             "Suspended",
             "WindowsTerminal",
+            "cmd",
+            "powershell",
+            "pwsh",
             "devenv",
             "msedge",
+            "chrome",
+            "firefox",
+            "brave",
+            "opera",
+            "vivaldi",
+            "emulationstation",
+            "retrobat",
+            "emulatorlauncher",
             "Code",
             "Discord",
             "NVIDIA Overlay",
             "NVIDIA App",
             "Notepad",
+            "notepad++",
             "XboxPcApp",
             "Gamebar_Widget",
             "MSI Center M",
@@ -479,10 +491,11 @@ namespace Suspended.Backend
             if (string.IsNullOrEmpty(retroBatPath)) return;
 
             string targetDir = Path.Combine(retroBatPath, "user", "SuspendedNTime");
-            string imageFileName = $"{processName}-marquee.png";
+            string fanartName = $"{processName}-fanart.png";
+            string imageName = $"{processName}-image.png";
             
-            TakeScreenshot(targetDir, imageFileName);
-            AddToGamelistXml(processName, targetDir, imageFileName);
+            TakeScreenshot(targetDir, new[] { fanartName, imageName });
+            AddToGamelistXml(processName, targetDir, fanartName, imageName);
         }
 
         private static void CreateSuspendKey(string processName, int processId)
@@ -508,14 +521,12 @@ namespace Suspended.Backend
             }
         }
 
-        private static void TakeScreenshot(string targetDir, string imageFileName)
+        private static void TakeScreenshot(string targetDir, string[] fileNames)
         {
             try
             {
                 string imagesDir = Path.Combine(targetDir, "images");
                 if (!Directory.Exists(imagesDir)) Directory.CreateDirectory(imagesDir);
-                
-                string imagePath = Path.Combine(imagesDir, imageFileName);
                 
                 Rectangle bounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
                 using (Bitmap bitmap = new Bitmap(bounds.Width, bounds.Height))
@@ -524,7 +535,12 @@ namespace Suspended.Backend
                     {
                         g.CopyFromScreen(Point.Empty, Point.Empty, bounds.Size);
                     }
-                    bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
+                    
+                    foreach (var fileName in fileNames)
+                    {
+                        string imagePath = Path.Combine(imagesDir, fileName);
+                        bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
+                    }
                 }
             }
             catch (Exception ex)
@@ -533,7 +549,7 @@ namespace Suspended.Backend
             }
         }
 
-        private static void AddToGamelistXml(string processName, string targetDir, string imageFileName)
+        private static void AddToGamelistXml(string processName, string targetDir, string fanartName, string imageName)
         {
             try
             {
@@ -560,10 +576,9 @@ namespace Suspended.Backend
                     new XElement("path", keyPath),
                     new XElement("name", processName),
                     new XElement("releasedate", DateTime.Now.ToString("yyyyMMddTHHmmss")),
-                    new XElement("desc", $"Jeu suspendu : {processName}"),
-                    new XElement("marquee", $"./images/{imageFileName}"),
-                    new XElement("fanart", ""),
-                    new XElement("image", ""),
+                    new XElement("desc", $"Suspended game: {processName}"),
+                    new XElement("fanart", $"./images/{fanartName}"),
+                    new XElement("image", $"./images/{imageName}"),
                     new XElement("thumbnail", "")
                 );
                 gameList.Add(newGame);
@@ -601,19 +616,33 @@ namespace Suspended.Backend
 
         private static void RemoveSuspendKey(string processName)
         {
+            // EN: Wait for emulatorlauncher to exit if it is still running, to avoid race conditions with RetroBat reload
+            // FR: Attendre que emulatorlauncher soit fermé s'il tourne encore, pour éviter les conflits de rechargement RetroBat
+            try
+            {
+                int retry = 0;
+                while (Process.GetProcessesByName("emulatorlauncher").Length > 0 && retry < 50)
+                {
+                    System.Threading.Thread.Sleep(100);
+                    retry++;
+                }
+            }
+            catch { }
+
             string retroBatPath = GetRetroBatInstallPath();
             if (string.IsNullOrEmpty(retroBatPath)) return;
 
             try
             {
-                string keyFilePath = Path.Combine(retroBatPath, "user", "SuspendedNTime", $"{processName}.key");
+                string targetDir = Path.Combine(retroBatPath, "user", "SuspendedNTime");
+                string keyFilePath = Path.Combine(targetDir, $"{processName}.key");
+                
                 if (File.Exists(keyFilePath))
                 {
                     File.Delete(keyFilePath);
                     Console.WriteLine($"[GameSuspendController] Removed suspend key: {keyFilePath}");
                 }
 
-                string targetDir = Path.Combine(retroBatPath, "user", "SuspendedNTime");
                 RemoveFromGamelistXml(processName, targetDir);
             }
             catch (Exception ex)

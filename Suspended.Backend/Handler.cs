@@ -1,4 +1,4 @@
-﻿using SharpDX;
+using SharpDX;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -210,15 +210,18 @@ namespace Suspended.Backend
                         string json;
                         lock (gameListLock)
                         {
-                            gameList = GameProcessManager.GetGamesList();
-                            Console.WriteLine($"[Server Handler] Created the following list {gameList.ToString()}");
-
-                            json = System.Text.Json.JsonSerializer.Serialize(gameList);
+                            json = GetFilteredGameListJson();
                         }
-
                         Console.WriteLine($"[Server Handler] Replying with the following List {json}");
-
                         (sender as Communication).Send("game-list " + json);
+                    }
+                    break;
+
+                case "get-backend-info":
+                    {
+                        string path = GameProcessManager.LocalStatePath;
+                        Console.WriteLine($"[Server Handler] Backend info requested. Path: {path}");
+                        (sender as Communication).Send($"backend-info {path}");
                     }
                     break;
 
@@ -286,35 +289,22 @@ namespace Suspended.Backend
 
         private void NewGameWindowAppeared(WindowInfo win)
         {
-            Console.WriteLine($"[Server Handler] NewGameWindowAppeared PID={win.ProcessId}, Hwnd={win.Handle}, Name='{win.ProcessName}' , Title='{win.Title}', IsSuspended='{win.IsSuspended}', Icon Path= {win.ProcessIconPath} ");
-
-            // Serialize to JSON string
+            Console.WriteLine($"[Server Handler] NewGameWindowAppeared PID={win.ProcessId}, Name='{win.ProcessName}'");
             if (_communication != null)
             {
                 string json;
-                lock (gameListLock)
-                {
-                    gameList = GameProcessManager.GetGamesList();
-                    json = System.Text.Json.JsonSerializer.Serialize(gameList);
-                }
-
+                lock (gameListLock) { json = GetFilteredGameListJson(); }
                 _communication.Send("game-list " + json);
             }
         }
 
         private void GameWindowDisappeared(WindowInfo win)
         {
-            Console.WriteLine($"[Server Handler] GameWindowDisappeared PID={win.ProcessId}, Hwnd={win.Handle}, Name='{win.ProcessName}' , Title='{win.Title}', IsSuspended='{win.IsSuspended}', Icon Path= {win.ProcessIconPath} ");
-            // Serialize to JSON string
+            Console.WriteLine($"[Server Handler] GameWindowDisappeared PID={win.ProcessId}, Name='{win.ProcessName}'");
             if (_communication != null)
             {
                 string json;
-                lock (gameListLock)
-                {
-                    gameList = GameProcessManager.GetGamesList();
-                    json = System.Text.Json.JsonSerializer.Serialize(gameList);
-                }
-
+                lock (gameListLock) { json = GetFilteredGameListJson(); }
                 _communication.Send("game-list " + json);
             }
         }
@@ -327,36 +317,36 @@ namespace Suspended.Backend
 
         private void GameProcessSuspended(WindowInfo win)
         {
-            Console.WriteLine($"[Server Handler] GameProcessSuspended PID={win.ProcessId}, Hwnd={win.Handle}, Name='{win.ProcessName}' , Title='{win.Title}', IsSuspended='{win.IsSuspended}', Icon Path= {win.ProcessIconPath} ");
-            // Serialize to JSON string
+            Console.WriteLine($"[Server Handler] GameProcessSuspended PID={win.ProcessId}, Name='{win.ProcessName}'");
             if (_communication != null)
             {
                 string json;
-                lock (gameListLock)
-                {
-                    gameList = GameProcessManager.GetGamesList();
-                    json = System.Text.Json.JsonSerializer.Serialize(gameList);
-                }
-
+                lock (gameListLock) { json = GetFilteredGameListJson(); }
                 _communication.Send("game-list " + json);
             }
         }
 
         private void GameProcessResumed(WindowInfo win)
         {
-            Console.WriteLine($"[Server Handler] GameProcessResumed PID={win.ProcessId}, Hwnd={win.Handle}, Name='{win.ProcessName}' , Title='{win.Title}', IsSuspended='{win.IsSuspended}', Icon Path= {win.ProcessIconPath} ");
-            // Serialize to JSON string
+            Console.WriteLine($"[Server Handler] GameProcessResumed PID={win.ProcessId}, Name='{win.ProcessName}'");
             if (_communication != null)
             {
                 string json;
-                lock (gameListLock)
-                {
-                    gameList = GameProcessManager.GetGamesList();
-                    json = System.Text.Json.JsonSerializer.Serialize(gameList);
-                }
-
+                lock (gameListLock) { json = GetFilteredGameListJson(); }
                 _communication.Send("game-list " + json);
             }
+        }
+
+        // EN: Returns a filtered JSON list of game processes (excludes whitelisted system apps)
+        // FR: Retourne la liste filtrée des processus jeux (exclut les apps système)
+        private string GetFilteredGameListJson()
+        {
+            gameList = GameProcessManager.GetGamesList();
+            var filtered = gameList.Where(g =>
+                !GameSuspendController.WhitelistedProcesses.Any(w =>
+                    string.Equals(w, g.ProcessName, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+            return System.Text.Json.JsonSerializer.Serialize(filtered);
         }
     }
 }

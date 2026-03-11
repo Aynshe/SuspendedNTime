@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -69,12 +69,11 @@ namespace Suspended.GameIconExtractor
 
                 SIZE sz = new SIZE { cx = size, cy = size };
 
-                // Request the icon with the specified size
-                factory.GetImage(sz, SIIGBF.SIIGBF_RESIZETOFIT |SIIGBF.SIIGBF_BIGGERSIZEOK | SIIGBF.SIIGBF_ICONONLY, out IntPtr hBitmap);
+                // EN: Request the thumbnail/icon — returns HBITMAP, NOT HICON, so never call Icon.FromHandle here
+                // FR: Retourne un HBITMAP et non HICON — ne jamais appeler Icon.FromHandle avec ce handle
+                factory.GetImage(sz, SIIGBF.SIIGBF_RESIZETOFIT | SIIGBF.SIIGBF_BIGGERSIZEOK | SIIGBF.SIIGBF_ICONONLY, out IntPtr hBitmap);
                 if (hBitmap == IntPtr.Zero)
                     return null;
-
-                var icon = Icon.FromHandle(hBitmap);
 
                 // Apply rounded corners if needed
                 using (var temp = Bitmap.FromHbitmap(hBitmap))
@@ -106,8 +105,9 @@ namespace Suspended.GameIconExtractor
                     return bmp;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[GameIconExtractor] Failed for {exePath}: {ex.Message}");
                 return null;
             }
         }
