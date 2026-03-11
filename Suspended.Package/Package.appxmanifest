@@ -10,7 +10,7 @@
 
   <Identity
     Name="BassemNomany.SuspendedNTime"
-    Publisher="CN=0E013939-CEFB-4F80-B4B4-B857260CB91A"
+    Publisher="CN=Aynshe_RetroBat__ForTry"
     Version="1.0.1.0" />
 
   <Properties>
@@ -37,7 +37,7 @@
         BackgroundColor="transparent"
         Square44x44Logo="Assets\Square44x44Logo.png"
 		Square150x150Logo="Assets\Square150x150Logo.png"
-		AppListEntry="none" >
+		AppListEntry="default" >
 		<uap:DefaultTile  Wide310x150Logo="Assets\Wide310x150Logo.png" >
 			<uap:ShowNameOnTiles>
 				<uap:ShowOn Tile="square150x150Logo"/>
@@ -59,7 +59,7 @@
             <uap3:Properties>
               <GameBarWidget Type="Standard">
                 <HomeMenuVisible>true</HomeMenuVisible>
-                <ActivateAfterInstall>false</ActivateAfterInstall>
+                <ActivateAfterInstall>true</ActivateAfterInstall>
 				  <FavoriteAfterInstall>true</FavoriteAfterInstall>
 				 <SupportsPinning>true</SupportsPinning>
 				  <ActivationUri>ms-gamebarwidget://Suspended.XboxGameBarUI</ActivationUri>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -347,13 +347,19 @@ namespace Suspended.Backend
             {
                 var process = Process.GetProcessById(pid);
 
-                // If first thread is suspended, we consider the process suspended
-                if (process.Threads.Count > 0)
+                if (process.Threads.Count == 0) return false;
+                
+                int suspendedCount = 0;
+                foreach (ProcessThread thread in process.Threads)
                 {
-                    var t = process.Threads[0];
-                    return t.ThreadState == System.Diagnostics.ThreadState.Wait &&
-                           t.WaitReason == ThreadWaitReason.Suspended;
+                    if (thread.ThreadState == System.Diagnostics.ThreadState.Wait &&
+                        thread.WaitReason == ThreadWaitReason.Suspended)
+                    {
+                        suspendedCount++;
+                    }
                 }
+                
+                return ((double)suspendedCount / process.Threads.Count) >= 0.80;
             }
             catch { }
             return false;

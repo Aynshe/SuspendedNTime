@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
@@ -41,6 +41,25 @@ namespace Suspended.Backend
             ShowWindow(handle, SW_HIDE);
 #endif
 
+            // Safe args access
+            string arg0 = args?.Length > 0 ? args[0] : null;
+
+            // EN: Handle -resume argument BEFORE the mutex check,
+            // because the backend may already be running (listening for combos)
+            // and the mutex would kill this instance before it could resume the game.
+            // FR: Traiter l'argument -resume AVANT la vérification du mutex,
+            // car le backend peut déjà tourner et bloquerait cette instance.
+            if (args != null && args.Length >= 2 && args[0].ToLowerInvariant() == "-resume")
+            {
+                Console.WriteLine($"[Program] Resuming process {args[1]}");
+                if (int.TryParse(args[1], out int pid))
+                {
+                    // Call synchronous since we will exit right after
+                    Task.Run(() => GameSuspendController.ResumeApp(pid)).Wait();
+                }
+                return;
+            }
+
             _mutex = new Mutex(true, "Suspended.Backend");
             if (!_mutex.WaitOne(TimeSpan.Zero, true))
             {
@@ -48,17 +67,14 @@ namespace Suspended.Backend
                 return;
             }
 
-            // Safe args access
-            string arg0 = args?.Length > 0 ? args[0] : null;
-
             // Start your backend communication
             Console.WriteLine($"{PROGRAM_NAME}");
-            Console.WriteLine($"[Program] Started with Argument {args[0]}");
+            Console.WriteLine($"[Program] Started");
+
+            Application.SetCompatibleTextRenderingDefault(false);
 
             // Prepare cancellation for background services
             var cts = new CancellationTokenSource();
-
-            Application.SetCompatibleTextRenderingDefault(false);
 
             // Create ApplicationContext early so we have a UI context for non-blocking startup tasks
             var trayContext = new TrayAppContext(cts);
