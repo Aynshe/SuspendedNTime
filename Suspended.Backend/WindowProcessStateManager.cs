@@ -36,6 +36,7 @@ namespace Suspended.Backend
         private readonly Timer refreshTimer;
         private TimeSpan refreshRate;
         private bool refreshEnabled = true;
+        private bool isRefreshingState = false; // Prevents re-entrancy
         string localState = "";
         public bool suspendOnFocusLost = false;
 
@@ -125,10 +126,16 @@ namespace Suspended.Backend
 
             this.refreshRate = refreshRate;
             refreshTimer = new Timer(
-            _ => { if (refreshEnabled) RefreshState(); },
-            null,
-            TimeSpan.Zero,
-            refreshRate);
+                _ => { 
+                    if (refreshEnabled) 
+                        RefreshState(); 
+                },
+                null,
+                Timeout.InfiniteTimeSpan, // EN: Start stopped, manually triggered by StartRefresh or constructor
+                Timeout.InfiniteTimeSpan);
+            
+            // Start the first refresh
+            refreshTimer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
         }
 
         // ================================
@@ -142,7 +149,7 @@ namespace Suspended.Backend
         public void StartRefresh()
         {
             refreshEnabled = true;
-            refreshTimer.Change(TimeSpan.Zero, refreshRate);
+            refreshTimer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
         }
 
         public void StopRefresh()
@@ -156,13 +163,14 @@ namespace Suspended.Backend
             refreshRate = newRate;
 
             if (refreshEnabled)
-                refreshTimer.Change(TimeSpan.Zero, newRate);
+                refreshTimer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
         }
 
         public TimeSpan GetRefreshRate() => refreshRate;
         public bool IsRefreshing => refreshEnabled;
 
-        public bool IsForegroundAppSuspended = false;
+        public bool IsForegroundAppSuspended { get; internal set; }
+        public bool IsForegroundAppTracked { get; internal set; }
         public string LocalStatePath => localState;
 
         // ================================
@@ -170,13 +178,38 @@ namespace Suspended.Backend
         // ================================
         private void RefreshState()
         {
+            if (isRefreshingState) return;
+
+            lock (windowsLock) // Reuse lock for overall safety
+            {
+                if (isRefreshingState) return;
+                isRefreshingState = true;
+            }
+
             try
             {
                 RefreshWindows();
                 RefreshForeground();
                 RefreshProcessState();
             }
-            catch { /* swallow errors; no crashes */ }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WindowProcessManager] RefreshState Error: {ex.Message}");
+            }
+            finally
+            {
+                lock (windowsLock)
+                {
+                    isRefreshingState = false;
+                }
+
+                // Schedule next refresh only if enabled
+                if (refreshEnabled)
+                {
+                    try { refreshTimer.Change(refreshRate, Timeout.InfiniteTimeSpan); }
+                    catch { }
+                }
+            }
         }
 
         private static bool IsCloaked(IntPtr hWnd)
@@ -314,7 +347,15 @@ namespace Suspended.Backend
             IntPtr fg = GetForegroundWindow();
 
             if (windows.TryGetValue(fg, out var currentFocusGame))
+            {
                 IsForegroundAppSuspended = currentFocusGame.IsSuspended;
+                IsForegroundAppTracked = true;
+            }
+            else
+            {
+                IsForegroundAppSuspended = false;
+                IsForegroundAppTracked = false;
+            }
 
             if (fg != lastForeground)
             {

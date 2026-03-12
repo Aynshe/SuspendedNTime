@@ -116,9 +116,14 @@ namespace Suspended.Backend
             "explorer",
             "perfmon",
             "SystemSettings",
+            "SystemSettingsAdminFlow",
             "Taskmgr",
             "TextInputHost",
             "WinStore.App",
+            "SearchHost",
+            "StartMenuExperienceHost",
+            "ShellExperienceHost",
+            "LockApp",
             "steamwebhelper",
             "EpicGamesLauncher",
             "Tooth",
@@ -145,6 +150,7 @@ namespace Suspended.Backend
             "notepad++",
             "XboxPcApp",
             "Gamebar_Widget",
+            "XboxGameBarWidgets",
             "MSI Center M",
             "IntelGraphicsSoftware"
         };

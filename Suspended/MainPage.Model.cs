@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -261,7 +261,60 @@ namespace Suspended
                     {
                         _base.foregroundGameSuspended = value;
                         _base.Notify("ForegroundGameSuspended");
+                        _base.Notify("ResumeButtonVisibility");
+                        _base.Notify("SuspendButtonVisibility");
                     }
+                }
+            }
+        }
+
+        public bool IsForegroundTracked
+        {
+            get { lock (_base) { return _base.isForegroundTracked; } }
+            set
+            {
+                lock (_base)
+                {
+                    if (_base.isForegroundTracked != value)
+                    {
+                        _base.isForegroundTracked = value;
+                        _base.Notify("IsForegroundTracked");
+                        _base.Notify("ResumeButtonVisibility");
+                        _base.Notify("SuspendButtonVisibility");
+                    }
+                }
+            }
+        }
+
+        // EN: Intelligence for the main Resume button (Global)
+        // FR: Intelligence pour le bouton Resume principal (Global)
+        public bool ResumeButtonVisibility
+        {
+            get
+            {
+                lock (_base)
+                {
+                    // EN: Show Resume if foreground is suspended OR if foreground is not tracked but ANY game is suspended
+                    // FR: Afficher Resume si le premier plan est suspendu OU si le premier plan n'est pas suivi mais qu'UN jeu est suspendu
+                    if (_base.foregroundGameSuspended) return true;
+                    if (!_base.isForegroundTracked && _base.gamesList != null)
+                        return _base.gamesList.Any(g => g.IsSuspended);
+                    return false;
+                }
+            }
+        }
+
+        // EN: Intelligence for the main Suspend button
+        // FR: Intelligence pour le bouton Suspend principal
+        public bool SuspendButtonVisibility
+        {
+            get
+            {
+                lock (_base)
+                {
+                    // EN: Show Suspend ONLY if the foreground app is a tracked game and is currently running
+                    // FR: Afficher Suspend UNIQUEMENT si l'app au premier plan est un jeu suivi et est en cours d'exécution
+                    return _base.isForegroundTracked && !_base.foregroundGameSuspended;
                 }
             }
         }
@@ -296,6 +349,7 @@ namespace Suspended
         public ObservableCollection<GameInfo> gamesList;
         public bool suspendOnFocusLoss = false;
         public bool foregroundGameSuspended = false;
+        public bool isForegroundTracked = false;
 
         private List<MainPageModelWrapper> _wrappers = new List<MainPageModelWrapper>();
 

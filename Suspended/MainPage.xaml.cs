@@ -52,6 +52,7 @@ namespace Suspended
             this.DataContext = _model;
 
             Backend.Instance.MessageReceivedEvent += Backend_OnMessageReceived;
+            Backend.Instance.ConnectionChangedEvent += Backend_OnConnectionChanged;
             Backend.Instance.ClosedOrFailedEvent += Backend_OnClosedOrFailed;
             if (Backend.Instance.IsConnected)
             {
@@ -65,20 +66,36 @@ namespace Suspended
         public void Dispose()
         {
             Backend.Instance.MessageReceivedEvent -= Backend_OnMessageReceived;
+            Backend.Instance.ConnectionChangedEvent -= Backend_OnConnectionChanged;
             Backend.Instance.ClosedOrFailedEvent -= Backend_OnClosedOrFailed;
         }
 
+        private bool _isDataInitialized = false;
         private void ConnectedInitialize()
         {
             _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => PanelSwitch(true));
-            Backend.Instance.Send("get-auto-suspend");
-            Backend.Instance.Send("get-go-back-to-sleep");
-            Backend.Instance.Send("get-power-button-action");
-            Backend.Instance.Send("get-enhanced-sleep");
-            Backend.Instance.Send("get-suspend-focus-loss");
-            Backend.Instance.Send("get-foreground-suspended");
-            Backend.Instance.Send("get-game-list");
-            Backend.Instance.Send("init");
+            
+            if (!_isDataInitialized)
+            {
+                Backend.Instance.Send("get-auto-suspend");
+                Backend.Instance.Send("get-go-back-to-sleep");
+                Backend.Instance.Send("get-power-button-action");
+                Backend.Instance.Send("get-enhanced-sleep");
+                Backend.Instance.Send("get-suspend-focus-loss");
+                Backend.Instance.Send("get-foreground-suspended");
+                Backend.Instance.Send("get-foreground-tracked");
+                Backend.Instance.Send("get-game-list");
+                Backend.Instance.Send("init");
+                _isDataInitialized = true;
+            }
+            else
+            {
+                // EN: Just refresh the list if already initialized once
+                // FR: Rafraîchir juste la liste si déjà initialisé
+                Backend.Instance.Send("get-game-list");
+                Backend.Instance.Send("get-foreground-suspended");
+                Backend.Instance.Send("get-foreground-tracked");
+            }
         }
 
         private void PanelSwitch(bool isBackendAlive)
@@ -86,12 +103,13 @@ namespace Suspended
             if (isBackendAlive)
             {
                 StartingBackgroundserviceTextBlock.Visibility = Visibility.Collapsed;
-                LaunchBackendButton.IsTapEnabled = false;
+                LaunchBackendButton.IsEnabled = false;
             }
             else
             {
                 StartingBackgroundserviceTextBlock.Visibility = Visibility.Visible;
-                LaunchBackendButton.IsTapEnabled = true;
+                LaunchBackendButton.IsEnabled = true;
+                _isDataInitialized = false; // Reset on disconnect
             }
         }
 
@@ -102,6 +120,13 @@ namespace Suspended
 
         private void Backend_OnMessageReceived_Impl(object sender, string message)
         {
+            // EN: If we receive any message, we are connected. Ensure UI is updated.
+            // FR: Si on reçoit un message, on est connecté. S'assurer que l'UI est à jour.
+            if (StartingBackgroundserviceTextBlock.Visibility == Visibility.Visible)
+            {
+                PanelSwitch(true);
+            }
+
             var backend = sender as Backend;
             string[] args = message.Split(' ');
             if (args.Length == 0)
@@ -169,6 +194,10 @@ namespace Suspended
                     Trace.WriteLine($"[MainPage.xaml.cs] Updating UI Foregroudn Suspended {args[1]}");
                     _model.ForegroundGameSuspended = Convert.ToBoolean(args[1]);
                     break;
+                case "foreground-tracked":
+                    Trace.WriteLine($"[MainPage.xaml.cs] Updating UI Foreground Tracked {args[1]}");
+                    _model.IsForegroundTracked = Convert.ToBoolean(args[1]);
+                    break;
             }
         }
 
@@ -184,6 +213,18 @@ namespace Suspended
             }
         }
 
+        private void Backend_OnConnectionChanged(object sender, bool isConnected)
+        {
+            _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => 
+            {
+                PanelSwitch(isConnected);
+                if (isConnected)
+                {
+                    ConnectedInitialize();
+                }
+            });
+        }
+
         private void Backend_OnClosedOrFailed(object _, EventArgs args)
         {
             _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => PanelSwitch(false));
@@ -192,6 +233,17 @@ namespace Suspended
         private void LaunchBackendButton_OnClick(object sender, RoutedEventArgs e)
         {
             _ = Backend.LaunchBackend();
+        }
+
+        private void OnRefreshButtonClick(object sender, RoutedEventArgs e)
+        {
+            // EN: Manually request the game list from the backend
+            // FR: Demande manuellement la liste des jeux au backend
+            if (Backend.Instance.IsConnected)
+            {
+                Backend.Instance.Send("get-game-list");
+                Trace.WriteLine("[MainPage.xaml.cs] Manual Refresh requested.");
+            }
         }
 
         private async void OnRestartBackendButtonClick(object sender, RoutedEventArgs e)
@@ -215,9 +267,29 @@ namespace Suspended
             }
         }
 
-        private void OnResumeButtonClick(object sender, RoutedEventArgs e)
+        private async void OnResumeButtonClick(object sender, RoutedEventArgs e)
         {
-            _model.ResumeActiveGame();
+            // EN: Show a confirmation dialog before resuming the game
+            // FR: Affiche une boîte de dialogue de confirmation avant de restaurer le jeu
+            ContentDialog resumeDialog = new ContentDialog
+            {
+                Title = "Resume Game?",
+                Content = "Do you want to resume the suspended game?",
+                PrimaryButtonText = "Resume",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            // EN: We must set XamlRoot for ContentDialog in latest UWP/WinUI
+            // FR: Il faut définir XamlRoot pour le ContentDialog
+            resumeDialog.XamlRoot = this.Content.XamlRoot;
+
+            ContentDialogResult result = await resumeDialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                _model.ResumeActiveGame();
+            }
         }
 
         private void OnSuspendButtonClick(object sender, RoutedEventArgs e)

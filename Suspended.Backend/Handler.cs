@@ -95,8 +95,22 @@ namespace Suspended.Backend
                     break;
                 case "resume-active-game":
                     {
-                        GameSuspendController.ResumeForegroundApp();
-                        Console.WriteLine($"[Server Handler] ResumedForeground App");
+                        // EN: Global Resume Logic: if focus app is suspended, resume it. 
+                        // Otherwise, resume the first suspended game we find in our list.
+                        if (GameProcessManager.IsForegroundAppTracked && GameProcessManager.IsForegroundAppSuspended)
+                        {
+                            GameSuspendController.ResumeForegroundApp();
+                            Console.WriteLine($"[Server Handler] Resumed Foreground App");
+                        }
+                        else
+                        {
+                            var suspendedGame = GameProcessManager.GetGamesList().FirstOrDefault(g => g.IsSuspended);
+                            if (suspendedGame.ProcessId != 0)
+                            {
+                                GameSuspendController.ResumeApp(suspendedGame.ProcessId);
+                                Console.WriteLine($"[Server Handler] Global Resume: Resumed PID {suspendedGame.ProcessId}");
+                            }
+                        }
                     }
                     break;
                 case "suspend-active-game":
@@ -274,6 +288,12 @@ namespace Suspended.Backend
                         (sender as Communication).Send($"foreground-suspended" + ' ' + $"{GameProcessManager.IsForegroundAppSuspended}");
                     }
                     break;
+                case "get-foreground-tracked":
+                    {
+                        Console.WriteLine($"[Server Handler] Responding with current foreground is tracked {GameProcessManager.IsForegroundAppTracked}");
+                        (sender as Communication).Send($"foreground-tracked" + ' ' + $"{GameProcessManager.IsForegroundAppTracked}");
+                    }
+                    break;
                 default:
                     break;
             }
@@ -313,6 +333,7 @@ namespace Suspended.Backend
         {
             Console.WriteLine($"[Server Handler] ForegroundGameWindowChanged PID={win.ProcessId}, Hwnd={win.Handle}, Name='{win.ProcessName}' , Title='{win.Title}', IsSuspended='{win.IsSuspended}', Icon Path= {win.ProcessIconPath} ");
             _communication.Send("foreground-suspended " + GameProcessManager.IsForegroundAppSuspended);
+            _communication.Send("foreground-tracked " + GameProcessManager.IsForegroundAppTracked);
         }
 
         private void GameProcessSuspended(WindowInfo win)

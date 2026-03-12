@@ -83,17 +83,18 @@
         </Grid.RowDefinitions>
         <Grid Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Top">
 
-        <StackPanel Orientation="Vertical" Spacing="4" x:Name="StartingBackgroundserviceTextBlock">
-                <TextBlock Text="Starting Background service ..."
-                           FontSize="18"
+        <StackPanel Orientation="Vertical" Spacing="4" x:Name="StartingBackgroundserviceTextBlock" Visibility="Collapsed">
+                <TextBlock Text="Service connection lost or not started..."
+                           FontSize="16"
                            FontWeight="Bold"
+                           HorizontalAlignment="Center"
                            Margin="0,0,0,4"/>
                 <Button x:Name="LaunchBackendButton"
                                     HorizontalAlignment="Stretch"
                                     Click="LaunchBackendButton_OnClick"
-                                    FontSize="18"
-                                    Height="47">
-                    Start Suspended Service manually
+                                    FontSize="16"
+                                    Height="42">
+                    Start Backend Service
                 </Button>
             </StackPanel>
         </Grid>
@@ -108,6 +109,39 @@
             <StackPanel x:Name="MainPanel" Orientation="Vertical" Margin="15,0,15,15">
                 
                 
+                <!-- Service Control Buttons -->
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="RefreshButton"
+                            Grid.Column="0"
+                            HorizontalAlignment="Stretch"
+                            Click="OnRefreshButtonClick"
+                            FontSize="16"
+                            Height="42">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                            <FontIcon Glyph="&#xE72C;" FontSize="16"/>
+                            <TextBlock Text="Refresh" FontSize="16"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="RestartBackendButton"
+                            Grid.Column="2"
+                            HorizontalAlignment="Stretch"
+                            Click="OnRestartBackendButtonClick"
+                            FontSize="16"
+                            Height="42">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                            <FontIcon Glyph="&#xE777;" FontSize="16"/>
+                            <TextBlock Text="Restart" FontSize="16"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
                 <!-- Resume and Suspend Games -->
                 <Grid HorizontalAlignment="Stretch">
 
@@ -117,7 +151,7 @@
                     x:Name="ResumeButton"
                     Height="44"
                     HorizontalAlignment="Stretch"
-                    Visibility="{Binding ForegroundGameSuspended, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Visibility="{Binding ResumeButtonVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Click="OnResumeButtonClick">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                             <FontIcon Glyph="&#xE768;" FontSize="18"/>
@@ -132,7 +166,7 @@
                     x:Name="SuspendButton"
                     Height="44"
                     HorizontalAlignment="Stretch"
-                    Visibility="{Binding ForegroundGameSuspended, Converter={StaticResource BooleanToNegativeVisibilityConverter}}"
+                    Visibility="{Binding SuspendButtonVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Click="OnSuspendButtonClick">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                             <FontIcon Glyph="&#xE769;" FontSize="18"/>
@@ -407,20 +441,6 @@
                         </Grid>
                     </StackPanel>
                 </Border>
-
-                <!-- Restart Service Button -->
-                <Button x:Name="RestartBackendButton"
-                        HorizontalAlignment="Stretch"
-                        Click="OnRestartBackendButtonClick"
-                        FontSize="16"
-                        Height="42"
-                        Margin="0,12,0,0">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                        <FontIcon Glyph="&#xE72C;" FontSize="16"/>
-                        <!-- Refresh icon -->
-                        <TextBlock Text="Restart Service" FontSize="16"/>
-                    </StackPanel>
-                </Button>
 
 
             </StackPanel>

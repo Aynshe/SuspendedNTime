@@ -1,4 +1,4 @@
-﻿using SharpDX.Direct3D9;
+using SharpDX.Direct3D9;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -25,6 +25,7 @@ namespace Suspended
     internal class Backend
     {
         public event EventHandler<string> MessageReceivedEvent;
+        public event EventHandler<bool> ConnectionChangedEvent;
         public event EventHandler ClosedOrFailedEvent;
 
         private static Backend _instance;
@@ -40,7 +41,7 @@ namespace Suspended
         private Backend()
         {
             _client = new NamedPipeClientStream(".", @"LOCAL\SuspendedPipe",
-                PipeDirection.InOut, PipeOptions.Asynchronous);
+                PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.WriteThrough);
 
             _reader = new StreamReader(_client);
             _writer = new StreamWriter(_client);
@@ -62,23 +63,60 @@ namespace Suspended
             Backend.Instance.Send($"set-refresh-list {Convert.ToInt32(isRefreshListEnabled)}");
         }
 
-        private void Loop()
+        private async Task Loop()
         {
             while (true)
             {
                 if (!_client.IsConnected)
                 {
+                    ConnectionChangedEvent?.Invoke(this, false);
                     ClosedOrFailedEvent?.Invoke(this, null);
-                    _client.Connect();
+                    try
+                    {
+                        Trace.WriteLine("[Backend] Attempting to connect to pipe...");
+                        await _client.ConnectAsync(5000);
+                        
+                        // EN: Recreate streams on new connection
+                        // FR: Recréer les flux sur la nouvelle connexion
+                        _reader = new StreamReader(_client, Encoding.UTF8);
+                        lock(this)
+                        {
+                            _writer = new StreamWriter(_client, Encoding.UTF8) { AutoFlush = true };
+                        }
+                        
+                        Trace.WriteLine("[Backend] Connected to pipe.");
+                        ConnectionChangedEvent?.Invoke(this, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine($"[Backend] Connection failed: {ex.Message}");
+                        await Task.Delay(2000);
+                        continue;
+                    }
                 }
+
                 try
                 {
-                    string message = _reader.ReadLine();
+                    string message = await _reader.ReadLineAsync();
 
                     if (message != null)
+                    {
                         MessageReceivedEvent?.Invoke(this, message);
+                    }
+                    else
+                    {
+                        Trace.WriteLine("[Backend] Pipe closed by server (null read).");
+                        _client.Close();
+                        // Recreate for next attempt
+                        _client = new NamedPipeClientStream(".", @"LOCAL\SuspendedPipe",
+                            PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.WriteThrough);
+                    }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"[Backend] Loop error: {ex.Message}");
+                    await Task.Delay(1000);
+                }
             }
         }
 
@@ -86,14 +124,21 @@ namespace Suspended
         {
             try
             {
-                lock (_writer)
+                if (_client == null || !_client.IsConnected) return;
+
+                lock (this)
                 {
-                    _writer.WriteLine(message);
-                    _writer.Flush();
+                    if (_writer != null)
+                    {
+                        _writer.WriteLine(message);
+                        // AutoFlush is true, so no need for explicit Flush()
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Trace.WriteLine($"[Backend] Send failed: {ex.Message}");
+                ConnectionChangedEvent?.Invoke(this, false);
                 ClosedOrFailedEvent?.Invoke(this, null);
             }
         }

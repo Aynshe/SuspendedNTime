@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -68,6 +68,14 @@ namespace Suspended.Backend
                     ConnectedEvent?.Invoke(this, null);
                 }
                 string message = _reader.ReadLine();
+                if (message == null)
+                {
+                    Console.WriteLine("[Connection] Read returned null. Pipe closed.");
+                    // EN: Force check IsConnected in next iteration
+                    // FR: Force la vérification IsConnected à l'itération suivante
+                    continue; 
+                }
+                
                 Console.WriteLine($"[Connection] Received: {message}");
                 if (!string.IsNullOrEmpty(message))
                     ReceivedEvent?.Invoke(this, message);
