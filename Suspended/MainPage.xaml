@@ -143,26 +143,17 @@
                 </Grid>
 
                 <!-- Resume and Suspend Games -->
-                <Grid HorizontalAlignment="Stretch">
-
-                    <!-- Resume Button -->
-                    <Button
-                    Grid.Column="0"
-                    x:Name="ResumeButton"
-                    Height="44"
-                    HorizontalAlignment="Stretch"
-                    Visibility="{Binding ResumeButtonVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
-                    Click="OnResumeButtonClick">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                            <FontIcon Glyph="&#xE768;" FontSize="18"/>
-                            <!-- Play icon -->
-                            <TextBlock Text="Resume" FontSize="18"/>
-                        </StackPanel>
-                    </Button>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
                     <!-- Suspend Button -->
                     <Button
-                    Grid.Column="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
                     x:Name="SuspendButton"
                     Height="44"
                     HorizontalAlignment="Stretch"
@@ -170,7 +161,6 @@
                     Click="OnSuspendButtonClick">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                             <FontIcon Glyph="&#xE769;" FontSize="18"/>
-                            <!-- Pause icon -->
                             <TextBlock Text="Suspend" FontSize="18"/>
                         </StackPanel>
                     </Button>
@@ -329,7 +319,7 @@
                         </ComboBoxItem>
                         <ComboBoxItem Content="Hibernate">
                             <ComboBoxItem.Tag>
-                                <x:Double>1</x:Double>
+                                <x:Double>2</x:Double>
                             </ComboBoxItem.Tag>
                         </ComboBoxItem>
                         <ComboBoxItem Content="Shutdown">

@@ -144,9 +144,13 @@ namespace Suspended.Backend
                         {
                             powerPolicyController = new PowerPolicyController();
                         }
-                        Console.WriteLine($"[Server Handler] Responding with Power Button Action {powerPolicyController.GetPowerButtonAction().ToString()}");
-
-                        (sender as Communication).Send("power-button-action" + ' ' + (int)powerPolicyController.GetPowerButtonAction());
+                        
+                        // EN: Get from settings first, if not set, get from system
+                        // FR: Récupérer des paramètres d'abord, sinon du système
+                        int savedAction = SettingsManager.Get<int>("PowerButtonAction");
+                        
+                        Console.WriteLine($"[Server Handler] Responding with Power Button Action {savedAction}");
+                        (sender as Communication).Send("power-button-action" + ' ' + savedAction);
                     }
                     break;
                 case "set-power-button-action":
@@ -156,13 +160,13 @@ namespace Suspended.Backend
                             powerPolicyController = new PowerPolicyController();
                         }
                         Console.WriteLine($"[Server Handler] Setting Power Button Action to {args[1]}");
-                        if (Enum.TryParse(args[1], out PowerPolicyController.PowerButtonAction action))
+                        if (int.TryParse(args[1], out int actionValue))
                         {
-                            powerPolicyController.SetPowerButtonAction(action);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[Server Handler] Invalid Power Button Action: {args[1]}");
+                            SettingsManager.Set("PowerButtonAction", actionValue);
+                            if (Enum.IsDefined(typeof(PowerPolicyController.PowerButtonAction), actionValue))
+                            {
+                                powerPolicyController.SetPowerButtonAction((PowerPolicyController.PowerButtonAction)actionValue);
+                            }
                         }
                     }
                     break;
@@ -279,6 +283,23 @@ namespace Suspended.Backend
                                 GameProcessManager.suspendOnFocusLost = false;
                             Console.WriteLine($"[Server Handler] Setting Suspend On Focus Loss to {suspendOnFocusLoss}");
                         }
+                    }
+                    break;
+                case "restart-service":
+                    {
+                        Console.WriteLine("[Server Handler] Restart service requested. Killing Game Bar processes...");
+                        string[] gamebarProcs = { "GameBar", "GameBarFT", "GameBarPresenceWriter", "XboxGameBar", "XboxGameBarWidgets" };
+                        foreach (var name in gamebarProcs)
+                        {
+                            var procs = System.Diagnostics.Process.GetProcessesByName(name);
+                            foreach (var p in procs)
+                            {
+                                try { p.Kill(); } catch { }
+                            }
+                        }
+                        
+                        Console.WriteLine("[Server Handler] Game Bar processes killed. Exiting backend...");
+                        Environment.Exit(0);
                     }
                     break;
 

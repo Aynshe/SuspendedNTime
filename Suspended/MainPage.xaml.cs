@@ -248,18 +248,17 @@ namespace Suspended
 
         private async void OnRestartBackendButtonClick(object sender, RoutedEventArgs e)
         {
-            // EN: Kill the backend and restart it. Suspended games remain frozen in memory.
-            // FR: Redémarre le service backend. Les jeux suspendus restent gelés en mémoire.
+            // EN: Ask the backend to kill Game Bar processes and exit.
+            // FR: Demande au backend de tuer les processus Game Bar et de quitter.
             try
             {
-                var processes = System.Diagnostics.Process.GetProcessesByName("Suspended.Backend");
-                foreach (var p in processes)
-                {
-                    try { p.Kill(); } catch { }
-                }
-
-                await System.Threading.Tasks.Task.Delay(1200);
-                _ = Backend.LaunchBackend();
+                Backend.Instance.Send("restart-service");
+                
+                // EN: Give it a moment to process before the widget itself might be killed by the system
+                await System.Threading.Tasks.Task.Delay(500); 
+                
+                // EN: We can also try to hide the widget UI or wait for the system to kill us
+                // but usually the backend killing GameBar.exe will terminate us.
             }
             catch (Exception ex)
             {
@@ -309,13 +308,12 @@ namespace Suspended
 
         private void AutoSuspedFocusToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            // handle Auto Suspend toggle changes
-            // handle Enhanced Sleep toggle changes
             if (sender is ToggleSwitch toggleSwitch)
             {
                 _model.SetSuspendOnFocusLossVar(toggleSwitch.IsOn);
             }
         }
+
 
         private async void GamesListView_ItemClick(object sender, ItemClickEventArgs e)
         {

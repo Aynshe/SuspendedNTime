@@ -60,6 +60,7 @@ namespace Suspended.Backend
                 return;
             }
 
+
             _mutex = new Mutex(true, "Suspended.Backend");
             if (!_mutex.WaitOne(TimeSpan.Zero, true))
             {

@@ -1,4 +1,4 @@
-﻿using Windows.Storage;
+using Windows.Storage;
 using System.Collections.Generic;
 using System;
 
@@ -15,6 +15,7 @@ namespace Suspended.Backend
             { "GoBackToSleep", 0 },
             { "EnhancedSleep", 0 },
             { "SuspendOnFocusLoss", 0 },
+            { "PowerButtonAction", 1 }
         };
 
         /// <summary>

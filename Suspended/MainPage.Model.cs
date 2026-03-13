@@ -249,6 +249,7 @@ namespace Suspended
                 }
             }
         }
+        
 
         public bool ForegroundGameSuspended
         {
@@ -286,35 +287,17 @@ namespace Suspended
             }
         }
 
-        // EN: Intelligence for the main Resume button (Global)
-        // FR: Intelligence pour le bouton Resume principal (Global)
-        public bool ResumeButtonVisibility
-        {
-            get
-            {
-                lock (_base)
-                {
-                    // EN: Show Resume if foreground is suspended OR if foreground is not tracked but ANY game is suspended
-                    // FR: Afficher Resume si le premier plan est suspendu OU si le premier plan n'est pas suivi mais qu'UN jeu est suspendu
-                    if (_base.foregroundGameSuspended) return true;
-                    if (!_base.isForegroundTracked && _base.gamesList != null)
-                        return _base.gamesList.Any(g => g.IsSuspended);
-                    return false;
-                }
-            }
-        }
-
-        // EN: Intelligence for the main Suspend button
-        // FR: Intelligence pour le bouton Suspend principal
+        // EN: Intelligence for the main Suspend button (Global)
+        // FR: Intelligence pour le bouton Suspend principal (Global)
         public bool SuspendButtonVisibility
         {
             get
             {
                 lock (_base)
                 {
-                    // EN: Show Suspend ONLY if the foreground app is a tracked game and is currently running
-                    // FR: Afficher Suspend UNIQUEMENT si l'app au premier plan est un jeu suivi et est en cours d'exécution
-                    return _base.isForegroundTracked && !_base.foregroundGameSuspended;
+                    // EN: Show Suspend tant que le jeu au premier plan est suivi
+                    // FR: Show Suspend as long as the foreground app is a tracked game
+                    return _base.isForegroundTracked;
                 }
             }
         }
@@ -344,7 +327,7 @@ namespace Suspended
         public bool isConnected = false;
         public bool autoSuspendEnabled = false;
         public bool goBackToSleepEnabled = false;
-        public double powerButtonAction = 2; // 0: Sleep, 1: Hibernate
+        public double powerButtonAction = 1; // 0: DoNothing, 1: Sleep, 2: Hibernate, 3: Shutdown, 4: TurnOffDisplay
         public bool enhancedSleepEnabled = false;
         public ObservableCollection<GameInfo> gamesList;
         public bool suspendOnFocusLoss = false;

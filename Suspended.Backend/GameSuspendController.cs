@@ -656,5 +656,6 @@ namespace Suspended.Backend
                 Console.WriteLine($"[GameSuspendController] Failed to remove suspend key: {ex.Message}");
             }
         }
+
     }
 }
